@@ -12,7 +12,7 @@
 
 <div class="card">
   <h2>创建 API Key</h2>
-  <form method="post" action="/admin/api-keys/add">
+  <form method="post" action="/admin/api-keys/add"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="form-row">
       <label>名称</label>
       <input type="text" name="name" placeholder="如: client-A" required>
@@ -53,10 +53,10 @@
         <td>{{ k.remark or '-' }}</td>
         <td>
           <button class="btn btn-sm btn-warn" onclick="document.getElementById('edit-{{ k.id }}').style.display='block'">编辑</button>
-          <form method="post" action="/admin/api-keys/{{ k.id }}/toggle" style="display: inline;">
+          <form method="post" action="/admin/api-keys/{{ k.id }}/toggle" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="btn btn-sm btn-secondary" type="submit">{% if k.status == 'active' %}禁用{% else %}启用{% endif %}</button>
           </form>
-          <form method="post" action="/admin/api-keys/{{ k.id }}/delete" style="display: inline;"
+          <form method="post" action="/admin/api-keys/{{ k.id }}/delete" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 onsubmit="return confirm('确认删除 Key {{ k.name }}? 客户端将立即无法使用!');">
             <button class="btn btn-sm btn-danger" type="submit">删除</button>
           </form>
@@ -64,7 +64,7 @@
       </tr>
       <tr id="edit-{{ k.id }}" style="display: none; background: #f8f9fa;">
         <td colspan="10">
-          <form method="post" action="/admin/api-keys/{{ k.id }}/update" style="display: flex; gap: 12px; align-items: center;">
+          <form method="post" action="/admin/api-keys/{{ k.id }}/update" style="display: flex; gap: 12px; align-items: center;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <label>日配额</label>
             <input type="number" name="daily_quota" value="{{ k.daily_quota }}" min="0" style="width: 100px;">
             <label>月配额</label>

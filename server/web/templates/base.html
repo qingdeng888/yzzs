@@ -67,7 +67,7 @@
     <a href="/admin/api-keys" class="{% if '/api-keys' in request.url.path %}active{% endif %}">API Keys</a>
     <a href="/admin/usage" class="{% if '/usage' in request.url.path %}active{% endif %}">日志统计</a>
     <span class="right">
-      <a href="/admin/logout">退出登录</a>
+      <form method="post" action="/admin/logout" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" style="background:none;border:0;color:#ecf0f1;cursor:pointer;font:inherit">退出登录</button></form>
     </span>
   </div>
   {% endif %}

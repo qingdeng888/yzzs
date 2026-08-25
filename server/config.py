@@ -19,9 +19,10 @@ class ServerConfig(BaseModel):
 
 class AdminConfig(BaseModel):
     username: str = "admin"
-    password: str = "changeme"  # 首次启动会哈希入 DB
+    password: str = ""  # 首次启动必须显式设置
     session_secret: str = ""  # 留空则自动生成
     session_expire_hours: int = 24
+    secure_cookie: bool = True
 
 
 class DatabaseConfig(BaseModel):
@@ -62,9 +63,17 @@ class AppConfig(BaseModel):
     data_dir: str = "./data"
 
     def get_session_secret(self) -> str:
-        """获取(必要时生成)session 加密密钥"""
+        """获取持久化的 session/加密密钥。"""
+        secret_file = Path(self.data_dir) / ".session_secret"
+        if not self.admin.session_secret and secret_file.exists():
+            self.admin.session_secret = secret_file.read_text(encoding="utf-8").strip()
         if not self.admin.session_secret:
             self.admin.session_secret = secrets.token_urlsafe(32)
+            secret_file.write_text(self.admin.session_secret + "\n", encoding="utf-8")
+            try:
+                secret_file.chmod(0o600)
+            except OSError:
+                pass
         return self.admin.session_secret
 
 
@@ -88,6 +97,8 @@ def load_config(path: str | Path = "./config.yaml") -> AppConfig:
         cfg.admin.username = v
     if v := os.environ.get("CTYUN_ADMIN_SECRET"):
         cfg.admin.session_secret = v
+    if v := os.environ.get("CTYUN_ADMIN_SECURE_COOKIE"):
+        cfg.admin.secure_cookie = v.lower() in {"1", "true", "yes", "on"}
     if v := os.environ.get("CTYUN_DB_URL"):
         cfg.database.url = v
     if v := os.environ.get("CTYUN_HOST"):

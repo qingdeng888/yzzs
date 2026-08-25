@@ -13,8 +13,9 @@ services:
       CTYUN_DATA_DIR: /app/data
       # 管理员配置(从 .env 读取,environment 优先级高于 env_file,这里显式透传)
       CTYUN_ADMIN_USERNAME: ${CTYUN_ADMIN_USERNAME:-admin}
-      CTYUN_ADMIN_PASSWORD: ${CTYUN_ADMIN_PASSWORD:-changeme}
+      CTYUN_ADMIN_PASSWORD: ${CTYUN_ADMIN_PASSWORD:?请在.env中设置CTYUN_ADMIN_PASSWORD}
       CTYUN_ADMIN_SECRET: ${CTYUN_ADMIN_SECRET:-}
+      CTYUN_ADMIN_SECURE_COOKIE: ${CTYUN_ADMIN_SECURE_COOKIE:-true}
     ports:
       - "${YZZS_PORT:-10087}:10088"
     volumes:

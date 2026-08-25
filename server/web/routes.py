@@ -3,6 +3,11 @@ server/web/routes.py - 后台管理路由
 """
 from __future__ import annotations
 import logging
+import secrets
+import hmac
+import threading
+import time
+from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -29,6 +34,32 @@ router = APIRouter(prefix="/admin", include_in_schema=False)
 
 TEMPLATES_DIR = __file__.replace("routes.py", "templates")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
+_login_lock = threading.Lock()
+_login_attempts: dict[str, deque[float]] = defaultdict(deque)
+
+def _csrf(request: Request) -> str:
+    token = request.cookies.get("ctyun_csrf")
+    return token or secrets.token_urlsafe(32)
+
+async def check_csrf(request: Request) -> bool:
+    form = await request.form()
+    cookie = request.cookies.get("ctyun_csrf")
+    token = form.get("csrf_token") or request.headers.get("x-csrf-token")
+    if not cookie or not token or not hmac.compare_digest(str(cookie), str(token)):
+        return False
+    return True
+
+def _login_allowed(client_ip: str) -> bool:
+    now = time.time()
+    with _login_lock:
+        attempts = _login_attempts[client_ip]
+        while attempts and now - attempts[0] > 300:
+            attempts.popleft()
+        return len(attempts) < 10
+
+def _record_login_failure(client_ip: str) -> None:
+    with _login_lock:
+        _login_attempts[client_ip].append(time.time())
 
 
 def _cfg(request: Request) -> AppConfig:
@@ -38,7 +69,14 @@ def _cfg(request: Request) -> AppConfig:
 def _render(request: Request, db: Session, name: str, ctx: dict, **kwargs):
     """统一渲染:注入 current_user 供 base.html 导航栏判断"""
     ctx["current_user"] = get_current_admin(request, db)
-    return templates.TemplateResponse(request, name, ctx, **kwargs)
+    ctx["csrf_token"] = _csrf(request)
+    response = templates.TemplateResponse(request, name, ctx, **kwargs)
+    if not request.cookies.get("ctyun_csrf"):
+        response.set_cookie(
+            "ctyun_csrf", ctx["csrf_token"], httponly=False,
+            secure=_cfg(request).admin.secure_cookie, samesite="lax", path="/",
+        )
+    return response
 
 
 def _check_admin(
@@ -70,9 +108,13 @@ async def login_submit(
     db: Session = Depends(get_db),
 ):
     cfg = _cfg(request)
+    client_ip = request.client.host if request.client else "unknown"
+    if not _login_allowed(client_ip):
+        raise HTTPException(status_code=429, detail="Too many login attempts")
     from ..models import AdminUser
     u = db.query(AdminUser).filter(AdminUser.username == username).first()
     if not u or not verify_password(password, u.password_hash):
+        _record_login_failure(client_ip)
         return _render(
             request, db, "login.html", {"msg": "用户名或密码错误"}, status_code=401
         )
@@ -87,15 +129,19 @@ async def login_submit(
     resp.set_cookie(
         ADMIN_COOKIE, token,
         max_age=cfg.admin.session_expire_hours * 3600,
-        httponly=True, samesite="lax", path="/",
+        httponly=True, secure=cfg.admin.secure_cookie, samesite="lax", path="/",
     )
+    csrf = secrets.token_urlsafe(32)
+    resp.set_cookie("ctyun_csrf", csrf, max_age=cfg.admin.session_expire_hours * 3600,
+                    httponly=False, secure=cfg.admin.secure_cookie, samesite="lax", path="/")
     return resp
 
 
-@router.get("/logout")
-async def logout():
+@router.post("/logout")
+async def logout(request: Request):
     resp = RedirectResponse("/admin/login", status_code=302)
     resp.delete_cookie(ADMIN_COOKIE, path="/")
+    resp.delete_cookie("ctyun_csrf", path="/")
     return resp
 
 

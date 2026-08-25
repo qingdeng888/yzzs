@@ -6,6 +6,7 @@
     <h2 style="text-align: center;">🔐 后台登录</h2>
     {% if msg %}<div class="alert alert-danger">{{ msg }}</div>{% endif %}
     <form method="post" action="/admin/login">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-row">
         <label>用户名</label>
         <input type="text" name="username" required autofocus>
@@ -20,7 +21,7 @@
     </form>
   </div>
   <p class="text-muted" style="text-align: center; font-size: 12px;">
-    默认账号 admin / changeme(请在 config.yaml 修改)
+    请通过 CTYUN_ADMIN_PASSWORD 设置管理员密码
   </p>
 </div>
 {% endblock %}

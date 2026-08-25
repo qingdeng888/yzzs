@@ -241,7 +241,7 @@ async def _stream_response(
             "model": model_name,
             "choices": [{
                 "index": 0,
-                "delta": {"content": f"\n[stream error: {e}]"},
+                "delta": {"content": "\n[upstream stream error]"},
                 "finish_reason": "stop",
             }],
         }
@@ -417,7 +417,7 @@ async def chat_completions(
     raise HTTPException(
         status_code=502,
         detail={"error": {
-            "message": f"All accounts failed: {last_err}",
+            "message": "All upstream accounts failed",
             "type": "upstream_error",
             "code": "all_accounts_failed",
         }},

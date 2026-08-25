@@ -6,7 +6,7 @@
 
 <div class="card">
   <h2>添加账号</h2>
-  <form method="post" action="/admin/accounts/add">
+  <form method="post" action="/admin/accounts/add"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="form-row">
       <label>账号</label>
       <input type="text" name="account" placeholder="形如 ty_xxxxx#1970740" required>
@@ -49,7 +49,7 @@
         <td>{{ a.last_login_at or '-' }}</td>
         <td>{% if a.has_session %}✅{% else %}❌{% endif %}</td>
         <td>
-          <form method="post" action="/admin/accounts/{{ a.id }}/settings" style="display: inline-flex; gap: 6px; align-items: center; white-space: nowrap;">
+          <form method="post" action="/admin/accounts/{{ a.id }}/settings" style="display: inline-flex; gap: 6px; align-items: center; white-space: nowrap;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="number" name="concurrency_limit" value="{{ a.concurrency_limit }}" min="1" max="50" style="width: 58px;">
             <label style="min-width: auto; white-space: nowrap;" title="对话完成后删除该请求创建的会话">
               <input type="checkbox" name="delete_conversation_after" value="1" {% if a.delete_conversation_after %}checked{% endif %}> 删会话
@@ -58,17 +58,17 @@
           </form>
         </td>
         <td>
-          <form method="post" action="/admin/accounts/{{ a.id }}/clear-conversations" style="display: inline;"
+          <form method="post" action="/admin/accounts/{{ a.id }}/clear-conversations" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 onsubmit="return confirm('确认清空账号 {{ a.account }} 的所有会话?');">
             <button class="btn btn-sm btn-warn" type="submit" title="清空该账号在云智的所有会话">清空会话</button>
           </form>
-          <form method="post" action="/admin/accounts/{{ a.id }}/refresh" style="display: inline;">
+          <form method="post" action="/admin/accounts/{{ a.id }}/refresh" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="btn btn-sm btn-secondary" type="submit" title="强制重新登录">刷新</button>
           </form>
-          <form method="post" action="/admin/accounts/{{ a.id }}/toggle" style="display: inline;">
+          <form method="post" action="/admin/accounts/{{ a.id }}/toggle" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="btn btn-sm btn-secondary" type="submit">{% if a.status == 'active' %}禁用{% else %}启用{% endif %}</button>
           </form>
-          <form method="post" action="/admin/accounts/{{ a.id }}/delete" style="display: inline;"
+          <form method="post" action="/admin/accounts/{{ a.id }}/delete" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 onsubmit="return confirm('确认删除账号 {{ a.account }}?');">
             <button class="btn btn-sm btn-danger" type="submit">删除</button>
           </form>

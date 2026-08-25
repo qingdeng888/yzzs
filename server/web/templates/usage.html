@@ -27,7 +27,7 @@
         <td>{{ r.in_tokens or 0 }}</td>
         <td>{{ r.out_tokens or 0 }}</td>
         <td>
-          <form method="post" action="/admin/usage/reset-key/{{ r.key_id }}" style="display: inline;"
+          <form method="post" action="/admin/usage/reset-key/{{ r.key_id }}" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 onsubmit="return confirm('确认重置 Key「{{ r.key_name }}」的全部统计记录?此操作不可恢复。');">
             <button class="btn btn-sm btn-danger" type="submit">重置统计</button>
           </form>
@@ -62,7 +62,7 @@
         <td>{{ a.in_tokens or 0 }}</td>
         <td>{{ a.out_tokens or 0 }}</td>
         <td>
-          <form method="post" action="/admin/usage/reset-account/{{ a.account_id }}" style="display: inline;"
+          <form method="post" action="/admin/usage/reset-account/{{ a.account_id }}" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 onsubmit="return confirm('确认重置账号「{{ a.account_name }}」的全部统计记录?此操作不可恢复。');">
             <button class="btn btn-sm btn-danger" type="submit">重置统计</button>
           </form>

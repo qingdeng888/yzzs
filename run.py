@@ -19,6 +19,8 @@ def main():
     args = parser.parse_args()
 
     cfg = load_config(args.config)
+    if cfg.server.workers != 1:
+        raise SystemExit("当前轻量 SQLite/内存状态模式仅支持 workers=1")
 
     host = args.host or cfg.server.host
     port = args.port or cfg.server.port

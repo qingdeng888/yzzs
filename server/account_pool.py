@@ -82,7 +82,7 @@ class AccountPool:
                     self._entries[a.id] = AccountEntry(a)
                 e = self._entries[a.id]
                 e.account_name = a.account
-                e.password = ""  # 等真正要用时再查
+                # 保留启动时解密到内存的密码，避免 reload 后账号全部无法登录
                 e.concurrency_limit = max(1, a.concurrency_limit or 2)
                 e.delete_conversation_after = bool(a.delete_conversation_after)
                 if a.status == "disabled":

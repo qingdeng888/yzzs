@@ -19,7 +19,7 @@ from .ratelimit import init_limiter
 from .account_pool import init_pool, get_pool
 from .models import AdminUser
 from . import session_store
-from .auth import hash_password
+from .auth import hash_password, verify_password
 from .db import session_scope
 
 from .api import chat as chat_api
@@ -37,6 +37,8 @@ def _bootstrap_admin(cfg: AppConfig):
     with session_scope() as db:
         u = db.query(AdminUser).filter(AdminUser.username == cfg.admin.username).first()
         if not u:
+            if not cfg.admin.password or cfg.admin.password == "changeme":
+                raise RuntimeError("首次启动必须设置 CTYUN_ADMIN_PASSWORD，禁止使用默认管理员密码")
             u = AdminUser(
                 username=cfg.admin.username,
                 password_hash=hash_password(cfg.admin.password),
@@ -45,6 +47,11 @@ def _bootstrap_admin(cfg: AppConfig):
             db.commit()
             log.info(f"创建初始 admin 用户: {cfg.admin.username}")
         elif not u.password_hash:
+            u.password_hash = hash_password(cfg.admin.password)
+            db.commit()
+        elif verify_password("changeme", u.password_hash):
+            if not cfg.admin.password or cfg.admin.password == "changeme":
+                raise RuntimeError("检测到默认管理员密码，请设置 CTYUN_ADMIN_PASSWORD 后重启")
             u.password_hash = hash_password(cfg.admin.password)
             db.commit()
 
@@ -110,6 +117,13 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     )
     app.state.config = cfg
 
+    @app.middleware("http")
+    async def admin_csrf_middleware(request: Request, call_next):
+        if request.method == "POST" and request.url.path.startswith("/admin"):
+            if not await web_routes.check_csrf(request):
+                return JSONResponse(status_code=403, content={"detail": "CSRF validation failed"})
+        return await call_next(request)
+
     # 路由
     app.include_router(health_api.router)
     app.include_router(models_api.router)
@@ -125,7 +139,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         log.exception("unhandled error")
         return JSONResponse(
             status_code=500,
-            content={"error": {"message": str(exc), "type": "internal_error", "code": "internal"}},
+            content={"error": {"message": "Internal server error", "type": "internal_error", "code": "internal"}},
         )
 
     @app.get("/")

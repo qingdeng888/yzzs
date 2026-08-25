@@ -9,9 +9,10 @@ server:
 
 admin:
   username: admin
-  password: changeme       # 首次启动会 bcrypt 入库,之后改 DB
-  session_secret: ""        # 留空自动生成,改此值会作废所有后台登录态
+  password: ""             # 首次启动必须设置，推荐使用环境变量
+  session_secret: ""       # 留空时在 data_dir 自动生成并持久化
   session_expire_hours: 24
+  secure_cookie: true       # 本机纯 HTTP 调试时可设为 false
 
 database:
   url: sqlite:///./data/ctyun.db
