@@ -85,6 +85,7 @@ async def stream_prompt_fc(
 
     full_text_parts: List[str] = []
     emitted_calls = False
+    pending_calls: List[ToolCall] = []
 
     async def _emit_calls(calls: List[ToolCall]) -> AsyncIterator[str]:
         nonlocal emitted_calls
@@ -156,10 +157,9 @@ async def stream_prompt_fc(
                             _chunk(model=model, delta={"content": text}, chunk_id=chunk_id)
                         )
                 elif sev.get("type") == "tool_calls":
-                    calls = _raw_to_calls(sev.get("calls") or [])
-                    async for frame in _emit_calls(calls):
-                        yield frame
-                    return
+                    # 先继续消费上游直到 [DONE]，让 2api 完成 Usage 统计；
+                    # 工具调用帧在上游连接关闭后再发给客户端。
+                    pending_calls = _raw_to_calls(sev.get("calls") or [])
 
         for sev in sieve.flush():
             if sev.get("type") == "content":
@@ -167,10 +167,7 @@ async def stream_prompt_fc(
                 if text:
                     yield format_sse(_chunk(model=model, delta={"content": text}, chunk_id=chunk_id))
             elif sev.get("type") == "tool_calls" and not emitted_calls:
-                calls = _raw_to_calls(sev.get("calls") or [])
-                async for frame in _emit_calls(calls):
-                    yield frame
-                return
+                pending_calls = _raw_to_calls(sev.get("calls") or [])
 
         if not emitted_calls:
             full_text = "".join(full_text_parts)
@@ -178,9 +175,11 @@ async def stream_prompt_fc(
                 full_text, tools, protocol=protocol, strip_think=strip_think
             )
             if calls:
-                async for frame in _emit_calls(calls):
-                    yield frame
-                return
+                pending_calls = calls
+        if pending_calls and not emitted_calls:
+            async for frame in _emit_calls(pending_calls):
+                yield frame
+            return
             yield format_sse(_chunk(model=model, delta={}, finish_reason="stop", chunk_id=chunk_id))
         yield done_frame()
     except Exception as exc:  # noqa: BLE001
