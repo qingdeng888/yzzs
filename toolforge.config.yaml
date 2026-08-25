@@ -14,7 +14,16 @@ upstreams:
     type: openai_compat
     base_url: "http://yzzs-2api:10088/v1"
     api_key: "${YZZS_API_KEY}"
-    models: ["*"]
+    # ToolForge 的 /v1/models 不会展开通配符，这里显式同步 2api 模型列表。
+    models:
+      - glm-5.2
+      - deepseek-v4
+      - qwen-3.7
+      - qwen-3-32b
+      - glm-5.2-nothing
+      - deepseek-v4-nothing
+      - qwen-3.7-nothing
+      - qwen-3-32b-nothing
     native_fc: false
     is_default: true
 
