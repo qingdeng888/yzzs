@@ -149,10 +149,13 @@ for chunk in resp:
    docker compose up -d --build
    ```
 
+   Compose 会同时启动 2api 和 ToolForge 工具调用网关。首次使用前，在 `.env` 设置 `YZZS_API_KEY` 和 `TOOLFORGE_API_KEY`；启动时 2api 会幂等创建内部 Key。
+
 3. **访问**
    - 后台: `http://<服务器IP>:10087/admin`
    - API 文档: `http://<服务器IP>:10087/docs`
    - 健康检查: `http://<服务器IP>:10087/healthz`
+   - 工具调用网关: `http://<服务器IP>:10090/v1`（客户端使用 `TOOLFORGE_API_KEY`）
    - 若宿主机 10087 被占用,改 `.env` 里 `YZZS_PORT`(如 `11088`)再 `docker compose up -d`
 
 **持久化**

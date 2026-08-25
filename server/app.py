@@ -4,6 +4,7 @@ server/app.py - FastAPI 应用工厂
 from __future__ import annotations
 import asyncio
 import logging
+import os
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -17,9 +18,9 @@ from .config import AppConfig, load_config
 from .db import init_engine, create_all
 from .ratelimit import init_limiter
 from .account_pool import init_pool, get_pool
-from .models import AdminUser
+from .models import AdminUser, ApiKey
 from . import session_store
-from .auth import hash_password, verify_password
+from .auth import hash_password, verify_password, hash_api_key
 from .db import session_scope
 
 from .api import chat as chat_api
@@ -56,6 +57,23 @@ def _bootstrap_admin(cfg: AppConfig):
             db.commit()
 
 
+def _bootstrap_internal_api_key():
+    """为 Compose 内部 ToolForge 幂等创建 API Key，不在页面显示明文。"""
+    plain = os.environ.get("CTYUN_INTERNAL_API_KEY", "").strip()
+    if not plain:
+        return
+    with session_scope() as db:
+        key_hash = hash_api_key(plain)
+        if db.query(ApiKey).filter(ApiKey.key_hash == key_hash).first():
+            return
+        db.add(ApiKey(
+            name="toolforge-internal",
+            key_hash=key_hash,
+            key_prefix=plain[:7],
+            key_suffix=plain[-4:],
+            remark="Compose ToolForge 内部访问",
+        ))
+        db.commit()
 def _bootstrap_account_passwords(cfg: AppConfig, pool):
     """启动时把所有账号的明文密码注入到内存池(从 DB 解密)"""
     with session_scope() as db:
@@ -102,6 +120,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 
         log.info("初始化 admin 用户...")
         _bootstrap_admin(cfg)
+        _bootstrap_internal_api_key()
 
         log.info("启动完成")
         yield

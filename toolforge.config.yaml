@@ -1,0 +1,33 @@
+# ToolForge 配置：把不支持原生 Function Calling 的云智 2api 包装成工具调用接口。
+server:
+  host: "0.0.0.0"
+  port: 8080
+  timeout_seconds: 180
+
+client_authentication:
+  enabled: true
+  allowed_keys:
+    - "${TOOLFORGE_API_KEY}"
+
+upstreams:
+  - name: yzzs
+    type: openai_compat
+    base_url: "http://yzzs-2api:10088/v1"
+    api_key: "${YZZS_API_KEY}"
+    models: ["*"]
+    native_fc: false
+    is_default: true
+
+features:
+  fc_mode: force_prompt
+  enable_streaming: true
+  enable_fc_error_retry: true
+  fc_error_retry_max: 2
+  strip_think_tags: true
+  inject_protocol: XYML
+  convert_developer_to_system: true
+  key_passthrough: false
+  model_passthrough: false
+  enable_cli_profiles: true
+  obfuscate_tool_names: false
+  enable_metrics: true
