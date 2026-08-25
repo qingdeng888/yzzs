@@ -5,15 +5,14 @@ server:
   timeout_seconds: 180
 
 client_authentication:
-  enabled: true
-  allowed_keys:
-    - "${TOOLFORGE_API_KEY}"
+  # Key 由 2api 统一管理；ToolForge 接收客户端 Bearer Key 并原样转发。
+  enabled: false
 
 upstreams:
   - name: yzzs
     type: openai_compat
     base_url: "http://yzzs-2api:10088/v1"
-    api_key: "${YZZS_API_KEY}"
+    api_key: ""
     # ToolForge 的 /v1/models 不会展开通配符，这里显式同步 2api 模型列表。
     models:
       - glm-5.2

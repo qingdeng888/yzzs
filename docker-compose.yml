@@ -16,7 +16,6 @@ services:
       CTYUN_ADMIN_PASSWORD: ${CTYUN_ADMIN_PASSWORD:?请在.env中设置CTYUN_ADMIN_PASSWORD}
       CTYUN_ADMIN_SECRET: ${CTYUN_ADMIN_SECRET:-}
       CTYUN_ADMIN_SECURE_COOKIE: ${CTYUN_ADMIN_SECURE_COOKIE:-true}
-      CTYUN_INTERNAL_API_KEY: ${YZZS_API_KEY:?请在.env中设置YZZS_API_KEY}
     ports:
       - "${YZZS_PORT:-10087}:10088"
     volumes:
@@ -34,8 +33,6 @@ services:
         condition: service_healthy
     environment:
       TOOLFORGE_CONFIG: /app/config.yaml
-      TOOLFORGE_API_KEY: ${TOOLFORGE_API_KEY:?请在.env中设置TOOLFORGE_API_KEY}
-      YZZS_API_KEY: ${YZZS_API_KEY:?请在.env中设置YZZS_API_KEY}
     volumes:
       - ./toolforge.config.yaml:/app/config.yaml:ro
     ports:

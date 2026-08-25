@@ -149,7 +149,7 @@ for chunk in resp:
    docker compose up -d --build
    ```
 
-   Compose 会同时启动 2api 和 ToolForge 工具调用网关。首次使用前，在 `.env` 设置 `YZZS_API_KEY` 和 `TOOLFORGE_API_KEY`；启动时 2api 会幂等创建内部 Key。
+   Compose 会同时启动 2api 和 ToolForge 工具调用网关。客户端直接使用 2api 后台创建的 API Key 访问 ToolForge；新增、禁用或删除 Key 会由 2api 统一生效。
 
 3. **访问**
    - 后台: `http://<服务器IP>:10087/admin`
