@@ -93,6 +93,32 @@ def _record_usage(
     db.commit()
 
 
+def _create_pending_usage(db: Session, api_key_id: int, account_id: Optional[int],
+                          model: str, stream: bool, client_ip: str) -> int:
+    u = Usage(api_key_id=api_key_id, account_id=account_id, model=model,
+              status="started", stream=stream, client_ip=client_ip)
+    db.add(u)
+    db.commit()
+    return u.id
+
+
+def _finish_usage(usage_id: int, status: str, prompt_tokens: int,
+                  completion_tokens: int, reasoning_tokens: int,
+                  latency_ms: int, error_msg: str = "") -> None:
+    with session_scope() as db:
+        u = db.get(Usage, usage_id)
+        if not u:
+            return
+        u.status = status
+        u.prompt_tokens = prompt_tokens
+        u.completion_tokens = completion_tokens
+        u.reasoning_tokens = reasoning_tokens
+        u.total_tokens = prompt_tokens + completion_tokens + reasoning_tokens
+        u.latency_ms = latency_ms
+        u.error_msg = error_msg[:2000]
+        db.commit()
+
+
 def _approx_tokens(text: str) -> int:
     """粗略 token 估算(中文 1.5 字/token, 英文 4 字符/token)"""
     if not text:
@@ -140,6 +166,7 @@ async def _stream_response(
     client_ip: str,
     entry=None,
     pool=None,
+    usage_id: Optional[int] = None,
 ) -> AsyncGenerator[bytes, None]:
     """生成 SSE 字节流。持有 entry 并发槽位,结束时统一 release + 按需删会话"""
     chat_id = f"chatcmpl-{uuid.uuid4().hex[:24]}"
@@ -269,12 +296,17 @@ async def _stream_response(
                 log.info(f"账号 {entry.account_id} 已删除会话 {conversation_id}: {j.get('resultMsg')}")
             except Exception as e:
                 log.warning(f"删除会话 {conversation_id} 失败: {e}")
-        with session_scope() as db:
-            _record_usage(
-                db, api_key_id, account_id, model_name, status,
-                prompt_tokens, completion_tokens, reasoning_tokens,
-                latency, stream=True, error_msg=error_msg, client_ip=client_ip,
-            )
+        if usage_id:
+            # 用线程执行，避免客户端取消信号打断 SQLite 提交。
+            await asyncio.shield(asyncio.to_thread(
+                _finish_usage, usage_id, status, prompt_tokens,
+                completion_tokens, reasoning_tokens, latency, error_msg,
+            ))
+        else:
+            with session_scope() as db:
+                _record_usage(db, api_key_id, account_id, model_name, status,
+                              prompt_tokens, completion_tokens, reasoning_tokens,
+                              latency, stream=True, error_msg=error_msg, client_ip=client_ip)
 
 
 @router.post("/v1/chat/completions")
@@ -341,6 +373,11 @@ async def chat_completions(
 
         # 阶段2: 分发
         if body.stream:
+            with session_scope() as usage_db:
+                usage_id = _create_pending_usage(
+                    usage_db, api_key.id, entry.account_id, body.model,
+                    stream=True, client_ip=client_ip,
+                )
             # 槽位所有权移交给生成器,由 _stream_response 的 finally 释放
             return StreamingResponse(
                 _stream_response(
@@ -348,6 +385,7 @@ async def chat_completions(
                     enable_thinking, web_search,
                     api_key.id, body.model, client_ip,
                     entry=entry, pool=pool,
+                    usage_id=usage_id,
                 ),
                 media_type="text/event-stream",
                 headers={
