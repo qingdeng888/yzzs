@@ -8,6 +8,7 @@ import hmac
 import threading
 import time
 from collections import defaultdict, deque
+from urllib.parse import parse_qs
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -42,9 +43,18 @@ def _csrf(request: Request) -> str:
     return token or secrets.token_urlsafe(32)
 
 async def check_csrf(request: Request) -> bool:
-    form = await request.form()
+    body = await request.body()
+
+    async def receive():
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    # call_next 会创建新的 Request，恢复请求体供 FastAPI Form 参数继续解析。
+    request._receive = receive
     cookie = request.cookies.get("ctyun_csrf")
-    token = form.get("csrf_token") or request.headers.get("x-csrf-token")
+    token = request.headers.get("x-csrf-token")
+    if not token and request.headers.get("content-type", "").startswith("application/x-www-form-urlencoded"):
+        values = parse_qs(body.decode("utf-8", errors="replace"), keep_blank_values=True)
+        token = (values.get("csrf_token") or [None])[0]
     if not cookie or not token or not hmac.compare_digest(str(cookie), str(token)):
         return False
     return True
