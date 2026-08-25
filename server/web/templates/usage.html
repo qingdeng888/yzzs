@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="margin-top: 0;">日志统计</h1>
+
+{% if msg %}<div class="alert alert-info">{{ msg }}</div>{% endif %}
+
+<div class="card">
+  <h2>📊 按 API Key 统计</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>名称</th><th>Key</th>
+        <th>总请求</th><th>成功</th><th>失败</th><th>成功率</th>
+        <th>输入 Token</th><th>输出 Token</th><th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in by_key %}
+      <tr>
+        <td>{{ r.key_id }}</td>
+        <td>{{ r.key_name }}</td>
+        <td><code>{{ r.key_prefix }}••••••••{{ r.key_suffix }}</code></td>
+        <td><b>{{ r.total }}</b></td>
+        <td class="text-success">{{ r.success or 0 }}</td>
+        <td class="text-danger">{{ r.failed or 0 }}</td>
+        <td>{% if r.total %}{{ ((r.success or 0) * 100.0 / r.total) | round(1) }}%{% else %}-{% endif %}</td>
+        <td>{{ r.in_tokens or 0 }}</td>
+        <td>{{ r.out_tokens or 0 }}</td>
+        <td>
+          <form method="post" action="/admin/usage/reset-key/{{ r.key_id }}" style="display: inline;"
+                onsubmit="return confirm('确认重置 Key「{{ r.key_name }}」的全部统计记录?此操作不可恢复。');">
+            <button class="btn btn-sm btn-danger" type="submit">重置统计</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="text-muted">还没有 API Key,去 <a href="/admin/api-keys">API Keys</a> 创建</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2>☁️ 按云智账号统计</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>账号</th>
+        <th>总请求</th><th>成功</th><th>失败</th><th>成功率</th>
+        <th>输入 Token</th><th>输出 Token</th><th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in by_account %}
+      <tr>
+        <td>{{ a.account_id }}</td>
+        <td><code>{{ a.account_name }}</code></td>
+        <td><b>{{ a.total }}</b></td>
+        <td class="text-success">{{ a.success or 0 }}</td>
+        <td class="text-danger">{{ a.failed or 0 }}</td>
+        <td>{% if a.total %}{{ ((a.success or 0) * 100.0 / a.total) | round(1) }}%{% else %}-{% endif %}</td>
+        <td>{{ a.in_tokens or 0 }}</td>
+        <td>{{ a.out_tokens or 0 }}</td>
+        <td>
+          <form method="post" action="/admin/usage/reset-account/{{ a.account_id }}" style="display: inline;"
+                onsubmit="return confirm('确认重置账号「{{ a.account_name }}」的全部统计记录?此操作不可恢复。');">
+            <button class="btn btn-sm btn-danger" type="submit">重置统计</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="text-muted">还没有账号,去 <a href="/admin/accounts">账号管理</a> 添加</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <details>
+    <summary style="cursor: pointer; font-weight: 600;">📄 最近 50 条明细记录(点击展开)</summary>
+    <div style="margin-top: 12px; overflow-x: auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>时间</th><th>API Key</th><th>账号</th><th>模型</th><th>状态</th>
+          <th>流</th><th>输入</th><th>输出</th><th>总</th><th>延迟</th><th>IP</th><th>错误</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in recent %}
+        <tr>
+          <td>{{ r.created_at }}</td>
+          <td>{% if r.api_key_id and r.api_key_id in keys_map %}{{ keys_map[r.api_key_id].name }}{% else %}-{% endif %}</td>
+          <td>{% if r.account_id and r.account_id in accounts_map %}{{ accounts_map[r.account_id].account }}{% else %}-{% endif %}</td>
+          <td><code>{{ r.model }}</code></td>
+          <td>{% if r.status == 'ok' %}<span class="badge badge-success">ok</span>{% else %}<span class="badge badge-danger">fail</span>{% endif %}</td>
+          <td>{% if r.stream %}SSE{% else %}JSON{% endif %}</td>
+          <td>{{ r.prompt_tokens }}</td>
+          <td>{{ r.completion_tokens }}</td>
+          <td><b>{{ r.total_tokens }}</b></td>
+          <td>{{ r.latency_ms }}ms</td>
+          <td>{{ r.client_ip or '-' }}</td>
+          <td class="text-muted" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;" title="{{ r.error_msg }}">{{ r.error_type or '-' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="12" class="text-muted">还没有请求记录</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </details>
+</div>
+{% endblock %}

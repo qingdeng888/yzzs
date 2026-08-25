@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="margin-top: 0;">API Keys 管理</h1>
+
+{% if msg %}<div class="alert alert-info">{{ msg }}</div>{% endif %}
+{% if new_key %}
+<div class="alert alert-warning">
+  <strong>新 Key 已创建(只显示一次,请妥善保存):</strong><br>
+  <code style="user-select: all; font-size: 14px; background: #fff; padding: 8px; display: block; margin-top: 6px; border-radius: 4px;">{{ new_key }}</code>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>创建 API Key</h2>
+  <form method="post" action="/admin/api-keys/add">
+    <div class="form-row">
+      <label>名称</label>
+      <input type="text" name="name" placeholder="如: client-A" required>
+      <label style="min-width: auto;">日配额</label>
+      <input type="number" name="daily_quota" value="{{ default_daily_quota }}" min="0">
+      <label style="min-width: auto;">月配额</label>
+      <input type="number" name="monthly_quota" value="{{ default_monthly_quota }}" min="0">
+      <label style="min-width: auto;">备注</label>
+      <input type="text" name="remark" placeholder="可选">
+      <button class="btn" type="submit">+ 创建</button>
+    </div>
+    <p class="text-muted" style="font-size: 12px; margin: 8px 0 0 0;">
+      配额填 0 表示不限制。客户端调用格式: <code>Authorization: Bearer sk-xxx</code>
+    </p>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Key 列表 ({{ keys | length }})</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>名称</th><th>Key</th><th>状态</th><th>日配额</th><th>月配额</th>
+        <th>最后使用</th><th>创建时间</th><th>备注</th><th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for k in keys %}
+      <tr>
+        <td>{{ k.id }}</td>
+        <td>{{ k.name }}</td>
+        <td><code>{{ k.key_prefix }}••••••••{{ k.key_suffix }}</code></td>
+        <td>{% if k.status == 'active' %}<span class="badge badge-success">active</span>{% else %}<span class="badge badge-danger">{{ k.status }}</span>{% endif %}</td>
+        <td>{{ k.daily_quota or '∞' }}</td>
+        <td>{{ k.monthly_quota or '∞' }}</td>
+        <td>{{ k.last_used_at or '-' }}</td>
+        <td>{{ k.created_at }}</td>
+        <td>{{ k.remark or '-' }}</td>
+        <td>
+          <button class="btn btn-sm btn-warn" onclick="document.getElementById('edit-{{ k.id }}').style.display='block'">编辑</button>
+          <form method="post" action="/admin/api-keys/{{ k.id }}/toggle" style="display: inline;">
+            <button class="btn btn-sm btn-secondary" type="submit">{% if k.status == 'active' %}禁用{% else %}启用{% endif %}</button>
+          </form>
+          <form method="post" action="/admin/api-keys/{{ k.id }}/delete" style="display: inline;"
+                onsubmit="return confirm('确认删除 Key {{ k.name }}? 客户端将立即无法使用!');">
+            <button class="btn btn-sm btn-danger" type="submit">删除</button>
+          </form>
+        </td>
+      </tr>
+      <tr id="edit-{{ k.id }}" style="display: none; background: #f8f9fa;">
+        <td colspan="10">
+          <form method="post" action="/admin/api-keys/{{ k.id }}/update" style="display: flex; gap: 12px; align-items: center;">
+            <label>日配额</label>
+            <input type="number" name="daily_quota" value="{{ k.daily_quota }}" min="0" style="width: 100px;">
+            <label>月配额</label>
+            <input type="number" name="monthly_quota" value="{{ k.monthly_quota }}" min="0" style="width: 100px;">
+            <label>备注</label>
+            <input type="text" name="remark" value="{{ k.remark }}" style="flex: 1;">
+            <button class="btn btn-sm" type="submit">保存</button>
+            <button class="btn btn-sm btn-secondary" type="button" onclick="document.getElementById('edit-{{ k.id }}').style.display='none'">取消</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="text-muted">还没有 API Key</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

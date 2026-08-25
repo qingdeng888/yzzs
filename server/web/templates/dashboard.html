@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="margin-top: 0;">仪表盘</h1>
+
+{% if msg %}<div class="alert alert-success">{{ msg }}</div>{% endif %}
+
+<div class="stats">
+  <div class="stat"><div class="v">{{ total }}</div><div class="l">总请求</div></div>
+  <div class="stat green"><div class="v">{{ success }}</div><div class="l">成功</div></div>
+  <div class="stat red"><div class="v">{{ failed }}</div><div class="l">失败</div></div>
+  <div class="stat blue"><div class="v">{{ total_prompt }}</div><div class="l">输入 token</div></div>
+  <div class="stat blue"><div class="v">{{ total_completion }}</div><div class="l">输出 token</div></div>
+  <div class="stat blue"><div class="v">{{ total_reasoning }}</div><div class="l">思考 token</div></div>
+  <div class="stat"><div class="v">{{ avg_latency }} ms</div><div class="l">平均延迟(成功)</div></div>
+  <div class="stat"><div class="v">{{ accounts | length }}</div><div class="l">账号数</div></div>
+</div>
+
+<div class="card">
+  <h2>过去 24h 流量(按小时)</h2>
+  <div id="by_hour_chart" style="height: 200px; display: flex; align-items: flex-end; gap: 2px; padding: 10px 0;">
+    {% set max_n = by_hour | map(attribute='n') | max if by_hour else 1 %}
+    {% for h in by_hour %}
+      <div style="flex: 1; background: #3498db; min-height: 4px; height: {{ (h.n / max_n * 180) | int }}px; position: relative;" title="{{ h.hour }}: {{ h.n }} 次">
+      </div>
+    {% endfor %}
+    {% if not by_hour %}
+      <div class="text-muted" style="margin: auto;">暂无数据</div>
+    {% endif %}
+  </div>
+  <div style="display: flex; justify-content: space-between; font-size: 11px; color: #7f8c8d; margin-top: 4px;">
+    {% for h in by_hour[:1] %}<span>{{ h.hour[5:] }}</span>{% endfor %}
+    <span>...共 {{ by_hour | length }} 小时</span>
+    {% for h in by_hour[-1:] %}<span>{{ h.hour[5:] }}</span>{% endfor %}
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+  <div class="card">
+    <h2>Top 5 模型</h2>
+    <table>
+      <thead><tr><th>模型</th><th>请求数</th></tr></thead>
+      <tbody>
+        {% for m in top_models %}
+        <tr><td><code>{{ m[0] }}</code></td><td>{{ m[1] }}</td></tr>
+        {% else %}
+        <tr><td colspan="2" class="text-muted">暂无数据</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h2>Top 5 API Key</h2>
+    <table>
+      <thead><tr><th>名称</th><th>请求数</th></tr></thead>
+      <tbody>
+        {% for k in top_keys %}
+        <tr><td>{{ k[0] }} (#{{ k[1] }})</td><td>{{ k[2] }}</td></tr>
+        {% else %}
+        <tr><td colspan="2" class="text-muted">暂无数据</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h2>账号状态</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>账号</th><th>状态</th><th>userId</th><th>tenant</th>
+        <th>错误次数</th><th>最后错误</th><th>冷却至</th><th>最后登录</th>
+        <th>Session</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in accounts %}
+      <tr>
+        <td>{{ a.id }}</td>
+        <td><code>{{ a.account }}</code></td>
+        <td>
+          {% if a.status == 'active' %}<span class="badge badge-success">active</span>
+          {% else %}<span class="badge badge-danger">{{ a.status }}</span>{% endif %}
+        </td>
+        <td>{{ a.user_id or '-' }}</td>
+        <td>{{ a.tenant_id or '-' }}</td>
+        <td>{{ a.error_count }}</td>
+        <td class="text-muted" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">{{ a.last_error[:50] or '-' }}</td>
+        <td>{{ a.cooldown_until or '-' }}</td>
+        <td>{{ a.last_login_at or '-' }}</td>
+        <td>{% if a.has_session %}✅{% else %}❌{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="text-muted">还没有账号,去 <a href="/admin/accounts">账号管理</a> 添加</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2>API Keys 概览</h2>
+  <table>
+    <thead><tr><th>#</th><th>名称</th><th>Key</th><th>状态</th><th>每日配额</th><th>每月配额</th><th>最后使用</th></tr></thead>
+    <tbody>
+      {% for k in api_keys %}
+      <tr>
+        <td>{{ k.id }}</td>
+        <td>{{ k.name }}</td>
+        <td><code>{{ k.key_prefix }}••••••••{{ k.key_suffix }}</code></td>
+        <td>{% if k.status == 'active' %}<span class="badge badge-success">active</span>{% else %}<span class="badge badge-danger">{{ k.status }}</span>{% endif %}</td>
+        <td>{{ k.daily_quota or '∞' }}</td>
+        <td>{{ k.monthly_quota or '∞' }}</td>
+        <td>{{ k.last_used_at or '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2>最近 20 条请求</h2>
+  <table>
+    <thead><tr><th>时间</th><th>API Key</th><th>账号</th><th>模型</th><th>状态</th><th>Token</th><th>延迟</th></tr></thead>
+    <tbody>
+      {% for r in recent %}
+      <tr>
+        <td>{{ r.created_at }}</td>
+        <td>{{ r.api_key_id or '-' }}</td>
+        <td>{{ r.account_id or '-' }}</td>
+        <td><code>{{ r.model }}</code></td>
+        <td>{% if r.status == 'ok' %}<span class="badge badge-success">ok</span>{% else %}<span class="badge badge-danger">fail</span>{% endif %}</td>
+        <td>in={{ r.prompt_tokens }} out={{ r.completion_tokens }} {% if r.reasoning_tokens %}(think={{ r.reasoning_tokens }}){% endif %}</td>
+        <td>{{ r.latency_ms }}ms</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-muted">还没有请求</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

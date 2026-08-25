@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="margin-top: 0;">账号管理</h1>
+
+{% if msg %}<div class="alert alert-info">{{ msg }}</div>{% endif %}
+
+<div class="card">
+  <h2>添加账号</h2>
+  <form method="post" action="/admin/accounts/add">
+    <div class="form-row">
+      <label>账号</label>
+      <input type="text" name="account" placeholder="形如 ty_xxxxx#1970740" required>
+      <label style="min-width: auto;">密码</label>
+      <input type="password" name="password" required>
+      <label style="min-width: auto;">备注</label>
+      <input type="text" name="remark" placeholder="可选">
+    </div>
+    <div class="form-row">
+      <label style="min-width: auto;">并发上限</label>
+      <input type="number" name="concurrency_limit" value="2" min="1" max="50" style="width:70px;" title="同一账号同时处理的最大请求数,超出的排队等待">
+      <label style="min-width: auto; white-space: nowrap;">
+        <input type="checkbox" name="delete_conversation_after" value="1"> 对话完成后删除会话
+      </label>
+      <button class="btn" type="submit">+ 添加</button>
+      <span class="text-muted">添加后会自动预热登录</span>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>账号列表 ({{ accounts | length }})</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>账号</th><th>状态</th><th>userId</th><th>tenant</th>
+        <th>错误次数</th><th>最后错误</th><th>最后登录</th><th>Session</th><th>并发/删会话</th><th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in accounts %}
+      <tr>
+        <td>{{ a.id }}</td>
+        <td><code>{{ a.account }}</code></td>
+        <td>{% if a.status == 'active' %}<span class="badge badge-success">active</span>{% else %}<span class="badge badge-danger">{{ a.status }}</span>{% endif %}</td>
+        <td>{{ a.user_id or '-' }}</td>
+        <td>{{ a.tenant_id or '-' }}</td>
+        <td>{{ a.error_count }}</td>
+        <td class="text-muted" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">{{ a.last_error[:60] or '-' }}</td>
+        <td>{{ a.last_login_at or '-' }}</td>
+        <td>{% if a.has_session %}✅{% else %}❌{% endif %}</td>
+        <td>
+          <form method="post" action="/admin/accounts/{{ a.id }}/settings" style="display: inline-flex; gap: 6px; align-items: center; white-space: nowrap;">
+            <input type="number" name="concurrency_limit" value="{{ a.concurrency_limit }}" min="1" max="50" style="width: 58px;">
+            <label style="min-width: auto; white-space: nowrap;" title="对话完成后删除该请求创建的会话">
+              <input type="checkbox" name="delete_conversation_after" value="1" {% if a.delete_conversation_after %}checked{% endif %}> 删会话
+            </label>
+            <button class="btn btn-sm" type="submit" title="保存并发上限与删会话设置">保存</button>
+          </form>
+        </td>
+        <td>
+          <form method="post" action="/admin/accounts/{{ a.id }}/clear-conversations" style="display: inline;"
+                onsubmit="return confirm('确认清空账号 {{ a.account }} 的所有会话?');">
+            <button class="btn btn-sm btn-warn" type="submit" title="清空该账号在云智的所有会话">清空会话</button>
+          </form>
+          <form method="post" action="/admin/accounts/{{ a.id }}/refresh" style="display: inline;">
+            <button class="btn btn-sm btn-secondary" type="submit" title="强制重新登录">刷新</button>
+          </form>
+          <form method="post" action="/admin/accounts/{{ a.id }}/toggle" style="display: inline;">
+            <button class="btn btn-sm btn-secondary" type="submit">{% if a.status == 'active' %}禁用{% else %}启用{% endif %}</button>
+          </form>
+          <form method="post" action="/admin/accounts/{{ a.id }}/delete" style="display: inline;"
+                onsubmit="return confirm('确认删除账号 {{ a.account }}?');">
+            <button class="btn btn-sm btn-danger" type="submit">删除</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="11" class="text-muted">还没有账号</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

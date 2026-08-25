@@ -1,0 +1,18 @@
+# 构建上下文排除项(控制镜像体积与避免泄漏本地数据/凭据)
+.git
+.gitignore
+data
+__pycache__
+*.pyc
+*.har
+*.md
+.spec-workflow
+node_modules
+.env
+.env.*
+*.log
+config.yaml
+*.tar.gz
+Dockerfile
+docker-compose*.yml
+.dockerignore

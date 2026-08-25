@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}登录 - 云智助手 2api{% endblock %}
+{% block content %}
+<div style="max-width: 400px; margin: 80px auto;">
+  <div class="card">
+    <h2 style="text-align: center;">🔐 后台登录</h2>
+    {% if msg %}<div class="alert alert-danger">{{ msg }}</div>{% endif %}
+    <form method="post" action="/admin/login">
+      <div class="form-row">
+        <label>用户名</label>
+        <input type="text" name="username" required autofocus>
+      </div>
+      <div class="form-row">
+        <label>密码</label>
+        <input type="password" name="password" required>
+      </div>
+      <div class="form-row" style="margin-top: 16px;">
+        <button class="btn" style="flex: 1;" type="submit">登 录</button>
+      </div>
+    </form>
+  </div>
+  <p class="text-muted" style="text-align: center; font-size: 12px;">
+    默认账号 admin / changeme(请在 config.yaml 修改)
+  </p>
+</div>
+{% endblock %}
