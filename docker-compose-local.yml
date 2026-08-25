@@ -1,16 +1,15 @@
 services:
   yzzs-2api:
-    image: ghcr.io/qingdeng888/yzzs:latest
+    build: .
+    image: yzzs-2api:local
     container_name: yzzs-2api
     restart: unless-stopped
     env_file:
       - .env
     environment:
-      # 容器内固定:监听所有网卡 + 端口 10088 + 数据落卷 /app/data
       CTYUN_HOST: 0.0.0.0
       CTYUN_PORT: 10088
       CTYUN_DATA_DIR: /app/data
-      # 管理员配置(从 .env 读取,environment 优先级高于 env_file,这里显式透传)
       CTYUN_ADMIN_USERNAME: ${CTYUN_ADMIN_USERNAME:-admin}
       CTYUN_ADMIN_PASSWORD: ${CTYUN_ADMIN_PASSWORD:?请在.env中设置CTYUN_ADMIN_PASSWORD}
       CTYUN_ADMIN_SECRET: ${CTYUN_ADMIN_SECRET:-}
@@ -18,11 +17,12 @@ services:
     ports:
       - "${YZZS_PORT:-10087}:10088"
     volumes:
-      # 持久化:SQLite + 日志全部写入命名卷,容器重建不丢数据
       - yzzs-data:/app/data
 
   toolforge:
-    image: ghcr.io/qingdeng888/yzzs-toolforge:latest
+    build:
+      context: ./vendor/toolforge
+    image: yzzs-toolforge:local
     container_name: yzzs-toolforge
     restart: unless-stopped
     depends_on:

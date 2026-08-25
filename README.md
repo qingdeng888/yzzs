@@ -146,16 +146,21 @@ for chunk in resp:
 
 2. **构建并启动**
    ```bash
-   docker compose up -d --build
+   docker compose up -d
    ```
 
-   Compose 会同时启动 2api 和 ToolForge 工具调用网关。客户端直接使用 2api 后台创建的 API Key 访问 ToolForge；新增、禁用或删除 Key 会由 2api 统一生效。
+   默认使用 GHCR 预构建的多架构镜像。Compose 会同时启动 2api 和 ToolForge 工具调用网关。客户端直接使用 2api 后台创建的 API Key 访问 ToolForge；新增、禁用或删除 Key 会由 2api 统一生效。
+
+   本地源码构建使用：
+   ```bash
+   docker compose -f docker-compose-local.yml up -d --build
+   ```
 
 3. **访问**
    - 后台: `http://<服务器IP>:10087/admin`
    - API 文档: `http://<服务器IP>:10087/docs`
    - 健康检查: `http://<服务器IP>:10087/healthz`
-   - 工具调用网关: `http://<服务器IP>:10090/v1`（客户端使用 `TOOLFORGE_API_KEY`）
+   - 工具调用网关: `http://<服务器IP>:10090/v1`（客户端使用 2api 后台创建的 API Key）
    - 若宿主机 10087 被占用,改 `.env` 里 `YZZS_PORT`(如 `11088`)再 `docker compose up -d`
 
 **持久化**
