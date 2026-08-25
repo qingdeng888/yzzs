@@ -1,6 +1,6 @@
-# 云智助手 2api
+# yzzs 2api
 
-把云智助手(eaichat.ctyun.cn)的网页端对话转成 OpenAI 兼容 API。
+把 yzzs 的网页端对话转成 OpenAI 兼容 API。
 
 ## 功能
 
