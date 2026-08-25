@@ -1,0 +1,24 @@
+services:
+  toolforge:
+    build: .
+    image: toolforge:latest
+    container_name: toolforge
+    ports:
+      - "${HOST_PORT:-8080}:8080"
+    environment:
+      TOOLFORGE_CONFIG: /app/config.yaml
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      LOCAL_API_KEY: ${LOCAL_API_KEY:-sk-local}
+    volumes:
+      # Override with HOST_CONFIG=./config.yaml after you customize
+      - ${HOST_CONFIG:-./config.example.yaml}:/app/config.yaml:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
