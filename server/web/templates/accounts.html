@@ -58,8 +58,7 @@
           </form>
         </td>
         <td>
-          <form method="post" action="/admin/accounts/{{ a.id }}/clear-conversations" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                onsubmit="return confirm('确认清空账号 {{ a.account }} 的所有会话?');">
+          <form method="post" action="/admin/accounts/{{ a.id }}/clear-conversations" style="display: inline;" onsubmit="return confirm('确认清空账号 {{ a.account }} 的所有会话?');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="btn btn-sm btn-warn" type="submit" title="清空该账号在云智的所有会话">清空会话</button>
           </form>
           <form method="post" action="/admin/accounts/{{ a.id }}/refresh" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -68,8 +67,7 @@
           <form method="post" action="/admin/accounts/{{ a.id }}/toggle" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="btn btn-sm btn-secondary" type="submit">{% if a.status == 'active' %}禁用{% else %}启用{% endif %}</button>
           </form>
-          <form method="post" action="/admin/accounts/{{ a.id }}/delete" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                onsubmit="return confirm('确认删除账号 {{ a.account }}?');">
+          <form method="post" action="/admin/accounts/{{ a.id }}/delete" style="display: inline;" onsubmit="return confirm('确认删除账号 {{ a.account }}?');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="btn btn-sm btn-danger" type="submit">删除</button>
           </form>
         </td>

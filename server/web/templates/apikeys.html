@@ -56,8 +56,7 @@
           <form method="post" action="/admin/api-keys/{{ k.id }}/toggle" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="btn btn-sm btn-secondary" type="submit">{% if k.status == 'active' %}禁用{% else %}启用{% endif %}</button>
           </form>
-          <form method="post" action="/admin/api-keys/{{ k.id }}/delete" style="display: inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                onsubmit="return confirm('确认删除 Key {{ k.name }}? 客户端将立即无法使用!');">
+          <form method="post" action="/admin/api-keys/{{ k.id }}/delete" style="display: inline;" onsubmit="return confirm('确认删除 Key {{ k.name }}? 客户端将立即无法使用!');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="btn btn-sm btn-danger" type="submit">删除</button>
           </form>
         </td>
