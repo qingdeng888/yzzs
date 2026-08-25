@@ -227,9 +227,14 @@ async def _stream_response(
             # 流自然结束(没有 finish_reason)
             yield b"data: [DONE]\n\n"
             completed = True
-    except (GeneratorExit, asyncio.CancelledError):
-        # 客户端断开,不记录
-        raise
+    except GeneratorExit:
+        # 客户端关闭连接，仍然落一条中断请求统计。
+        status = "interrupted"
+    except asyncio.CancelledError:
+        # ToolForge 在识别到 Prompt-FC 后会主动结束上游 SSE；不要让取消
+        # 信号跳过 finally 中的 Usage 写入。
+        status = "interrupted"
+        log.info("stream cancelled by downstream, recording partial usage")
     except Exception as e:
         log.exception("stream error")
         error_msg = str(e)
