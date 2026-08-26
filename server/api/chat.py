@@ -11,6 +11,7 @@ from typing import Optional, AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -117,6 +118,16 @@ def _finish_usage(usage_id: int, status: str, prompt_tokens: int,
         u.latency_ms = latency_ms
         u.error_msg = error_msg[:2000]
         db.commit()
+
+
+def _finish_interrupted_usage(usage_id: int) -> None:
+    """ASGI 取消流式生成器后仍确保 Usage 不停留在 started。"""
+    with session_scope() as db:
+        u = db.get(Usage, usage_id)
+        if u and u.status == "started":
+            u.status = "interrupted"
+            u.error_msg = "downstream stream closed before completion"
+            db.commit()
 
 
 def _approx_tokens(text: str) -> int:
@@ -392,6 +403,7 @@ async def chat_completions(
                     "Cache-Control": "no-cache",
                     "X-Accel-Buffering": "no",
                 },
+                background=BackgroundTask(_finish_interrupted_usage, usage_id),
             )
         else:
             # 非流式: 调同步流,自己拼
