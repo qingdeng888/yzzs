@@ -161,6 +161,12 @@ async def stream_prompt_fc(
                     # 工具调用帧在上游连接关闭后再发给客户端。
                     pending_calls = _raw_to_calls(sev.get("calls") or [])
 
+        # iter_sse_events 在收到 [DONE] 后只结束迭代；显式关闭底层
+        # httpx 流，确保 2api 的 StreamingResponse finally 能落 Usage。
+        close = getattr(line_iter, "aclose", None)
+        if close is not None:
+            await close()
+
         for sev in sieve.flush():
             if sev.get("type") == "content":
                 text = str(sev.get("text") or "")

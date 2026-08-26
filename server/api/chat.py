@@ -100,6 +100,7 @@ def _create_pending_usage(db: Session, api_key_id: int, account_id: Optional[int
               status="started", stream=stream, client_ip=client_ip)
     db.add(u)
     db.commit()
+    log.info("usage started id=%s key=%s account=%s model=%s", u.id, api_key_id, account_id, model)
     return u.id
 
 
@@ -118,16 +119,29 @@ def _finish_usage(usage_id: int, status: str, prompt_tokens: int,
         u.latency_ms = latency_ms
         u.error_msg = error_msg[:2000]
         db.commit()
+        log.info("usage finished id=%s status=%s prompt=%s completion=%s reasoning=%s latency=%s",
+                 usage_id, status, prompt_tokens, completion_tokens, reasoning_tokens, latency_ms)
 
 
-def _finish_interrupted_usage(usage_id: int) -> None:
-    """ASGI 取消流式生成器后仍确保 Usage 不停留在 started。"""
+def _finish_stream_usage(usage_id: int, tracker: dict) -> None:
+    """ASGI 未执行生成器 finally 时，从共享 tracker 完成 Usage。"""
     with session_scope() as db:
         u = db.get(Usage, usage_id)
         if u and u.status == "started":
-            u.status = "interrupted"
-            u.error_msg = "downstream stream closed before completion"
+            prompt_tokens = int(tracker.get("prompt_tokens", 0))
+            completion_tokens = _approx_tokens(str(tracker.get("content", "")))
+            reasoning_tokens = _approx_tokens(str(tracker.get("reasoning", "")))
+            has_output = bool(completion_tokens or reasoning_tokens)
+            u.status = "ok" if tracker.get("completed") or has_output else "interrupted"
+            u.prompt_tokens = prompt_tokens
+            u.completion_tokens = completion_tokens
+            u.reasoning_tokens = reasoning_tokens
+            u.total_tokens = prompt_tokens + completion_tokens + reasoning_tokens
+            u.latency_ms = max(0, int((time.time() - tracker["started_at"]) * 1000))
+            u.error_msg = "" if u.status == "ok" else "downstream stream closed before completion"
             db.commit()
+            log.info("usage background finished id=%s status=%s prompt=%s completion=%s reasoning=%s",
+                     usage_id, u.status, prompt_tokens, completion_tokens, reasoning_tokens)
 
 
 def _approx_tokens(text: str) -> int:
@@ -178,6 +192,7 @@ async def _stream_response(
     entry=None,
     pool=None,
     usage_id: Optional[int] = None,
+    tracker: Optional[dict] = None,
 ) -> AsyncGenerator[bytes, None]:
     """生成 SSE 字节流。持有 entry 并发槽位,结束时统一 release + 按需删会话"""
     chat_id = f"chatcmpl-{uuid.uuid4().hex[:24]}"
@@ -192,7 +207,17 @@ async def _stream_response(
     status = "ok"
     conversation_id: Optional[str] = None
     completed = False
+    resp = None
+
+    def _next_line(line_iter):
+        try:
+            return True, next(line_iter)
+        except StopIteration:
+            # StopIteration cannot cross an asyncio Future boundary.
+            return False, None
+
     try:
+        log.info("stream enter id=%s model=%s", usage_id, model_name)
         # 在线程池中跑同步 requests(在 try 内,异常也能走 finally 释放槽位)
         resp = await asyncio.to_thread(
             client.chat, key_model, messages,
@@ -200,7 +225,16 @@ async def _stream_response(
             web_search=web_search,
             stream=True,
         )
-        for raw_line in resp.iter_lines():
+        log.info("stream upstream opened id=%s status=%s", usage_id, getattr(resp, "status_code", None))
+        line_iter = resp.iter_lines()
+        while True:
+            has_line, raw_line = await asyncio.to_thread(_next_line, line_iter)
+            if not has_line:
+                # 流自然结束(没有 finish_reason)
+                yield b"data: [DONE]\n\n"
+                completed = True
+                break
+            log.debug("stream line id=%s bytes=%s", usage_id, len(raw_line or b""))
             if not raw_line:
                 continue
             line = raw_line.decode("utf-8", errors="replace")
@@ -232,12 +266,16 @@ async def _stream_response(
                 except Exception:
                     pass
                 full_content += content
+                if tracker is not None:
+                    tracker["content"] = full_content
             if reasoning:
                 try:
                     reasoning = reasoning.encode("latin-1").decode("utf-8")
                 except Exception:
                     pass
                 full_reasoning += reasoning
+                if tracker is not None:
+                    tracker["reasoning"] = full_reasoning
 
             out_delta = {"role": "assistant", "content": content}
             if enable_thinking and reasoning:
@@ -260,18 +298,16 @@ async def _stream_response(
                 # 再发一个 [DONE]
                 yield b"data: [DONE]\n\n"
                 completed = True
+                if tracker is not None:
+                    tracker["completed"] = True
                 break
-        else:
-            # 流自然结束(没有 finish_reason)
-            yield b"data: [DONE]\n\n"
-            completed = True
     except GeneratorExit:
         # 客户端关闭连接，仍然落一条中断请求统计。
         status = "interrupted"
     except asyncio.CancelledError:
-        # ToolForge 在识别到 Prompt-FC 后会主动结束上游 SSE；不要让取消
-        # 信号跳过 finally 中的 Usage 写入。
-        status = "interrupted"
+        # ToolForge/客户端可能在已取得完整工具调用后关闭上游连接。
+        # 已收到模型输出时请求本身是成功的；否则才算真正中断。
+        status = "ok" if full_content or full_reasoning else "interrupted"
         log.info("stream cancelled by downstream, recording partial usage")
     except Exception as e:
         log.exception("stream error")
@@ -308,16 +344,27 @@ async def _stream_response(
             except Exception as e:
                 log.warning(f"删除会话 {conversation_id} 失败: {e}")
         if usage_id:
-            # 用线程执行，避免客户端取消信号打断 SQLite 提交。
-            await asyncio.shield(asyncio.to_thread(
+            log.info("stream cleanup id=%s status=%s content_len=%s reasoning_len=%s",
+                     usage_id, status, len(full_content), len(full_reasoning))
+            # 单独创建任务，保证当前响应任务已被取消时 SQLite 提交仍会完成。
+            finish_task = asyncio.create_task(asyncio.to_thread(
                 _finish_usage, usage_id, status, prompt_tokens,
                 completion_tokens, reasoning_tokens, latency, error_msg,
             ))
+            try:
+                await asyncio.shield(finish_task)
+            except asyncio.CancelledError:
+                pass
         else:
             with session_scope() as db:
                 _record_usage(db, api_key_id, account_id, model_name, status,
                               prompt_tokens, completion_tokens, reasoning_tokens,
                               latency, stream=True, error_msg=error_msg, client_ip=client_ip)
+        if resp is not None:
+            try:
+                await asyncio.shield(asyncio.to_thread(resp.close))
+            except (Exception, asyncio.CancelledError):
+                pass
 
 
 @router.post("/v1/chat/completions")
@@ -389,6 +436,13 @@ async def chat_completions(
                     usage_db, api_key.id, entry.account_id, body.model,
                     stream=True, client_ip=client_ip,
                 )
+            tracker = {
+                "started_at": time.time(),
+                "prompt_tokens": sum(_approx_tokens(m["content"]) for m in ctyun_messages),
+                "content": "",
+                "reasoning": "",
+                "completed": False,
+            }
             # 槽位所有权移交给生成器,由 _stream_response 的 finally 释放
             return StreamingResponse(
                 _stream_response(
@@ -397,13 +451,14 @@ async def chat_completions(
                     api_key.id, body.model, client_ip,
                     entry=entry, pool=pool,
                     usage_id=usage_id,
+                    tracker=tracker,
                 ),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
                     "X-Accel-Buffering": "no",
                 },
-                background=BackgroundTask(_finish_interrupted_usage, usage_id),
+                background=BackgroundTask(_finish_stream_usage, usage_id, tracker),
             )
         else:
             # 非流式: 调同步流,自己拼
